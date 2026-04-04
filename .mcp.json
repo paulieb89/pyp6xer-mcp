@@ -3,7 +3,7 @@
     "pyp6xer": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "python", "/home/bch/dev/00_RELEASE/p6-mcp-2/server.py"]
+      "args": ["run", "python", "server.py"]
     }
   }
 }

@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.mypy_cache/
 *.xer
 research/
 .agents/
