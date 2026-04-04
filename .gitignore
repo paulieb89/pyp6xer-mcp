@@ -8,3 +8,5 @@ research/
 .windsurf/
 skills-lock.json
 main.py
+.claude/
+.mcp.json

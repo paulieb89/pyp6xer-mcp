@@ -1633,7 +1633,19 @@ def pyp6xer_write_file(
 
 
 # ---------------------------------------------------------------------------
+# Health check (required for Fly.io)
+# ---------------------------------------------------------------------------
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request):
+    from starlette.responses import JSONResponse
+    return JSONResponse({"status": "ok"})
+
+
+# ---------------------------------------------------------------------------
 # Entry point
+# Transport is controlled by env vars at deploy time:
+#   FASTMCP_TRANSPORT=http  FASTMCP_HOST=0.0.0.0  FASTMCP_PORT=5000
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
