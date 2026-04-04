@@ -1551,7 +1551,7 @@ def pyp6xer_update_activity(
         "status": "updated",
         "task_code": task_code,
         "changes": applied,
-        "note": "Call pyp6xer_write_file to persist changes to disk.",
+        "note": "Call pyp6xer_write_file to persist. Omit output_path to overwrite the source file.",
     }, indent=2)
 
 
@@ -1592,13 +1592,13 @@ def pyp6xer_batch_update(
         "errors": len(errors),
         "results": results,
         "error_details": errors,
-        "note": "Call pyp6xer_write_file to persist changes to disk.",
+        "note": "Call pyp6xer_write_file to persist. Omit output_path to overwrite the source file.",
     }, indent=2)
 
 
 @mcp.tool
 def pyp6xer_write_file(
-    output_path: str,
+    output_path: Optional[str] = None,
     cache_key: str = "default",
     ctx: Context = None,
 ) -> str:
@@ -1608,18 +1608,26 @@ def pyp6xer_write_file(
     or pyp6xer_batch_update) and writes to the specified path.
 
     Args:
-        output_path: Absolute or relative path where the .xer file should be written.
+        output_path: Path where the .xer file should be written. Defaults to the
+                     original source path (overwrites in place). Must be a local
+                     path — URL sources require an explicit output_path.
         cache_key:   Cache key of the loaded file.
     """
     entry = _get_cache(ctx, cache_key)
+    resolved_path = output_path or entry["source"]
+    if resolved_path.startswith("http://") or resolved_path.startswith("https://"):
+        raise ValueError(
+            "Cannot write back to a URL source. "
+            "Provide an explicit output_path."
+        )
     content = _serialize_xer(entry["header"], entry["table_order"], entry["raw_tables"])
 
-    with open(output_path, "w", encoding=Xer.CODEC, newline="") as f:
+    with open(resolved_path, "w", encoding=Xer.CODEC, newline="") as f:
         f.write(content)
 
     return json.dumps({
         "status": "written",
-        "output_path": output_path,
+        "output_path": resolved_path,
         "cache_key": cache_key,
         "bytes_written": len(content.encode(Xer.CODEC)),
     }, indent=2)
