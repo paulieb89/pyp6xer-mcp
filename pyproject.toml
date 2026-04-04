@@ -1,0 +1,10 @@
+[project]
+name = "p6-mcp-2"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=3.0.0",
+    "httpx>=0.28.1",
+    "xerparser>=0.13.9",
+]
