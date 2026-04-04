@@ -60,6 +60,25 @@ mcp = FastMCP(
 DATE_FMT = "%Y-%m-%d"
 DATETIME_FMT = "%Y-%m-%d %H:%M"
 
+# Fields available on list/search tools (summary dict)
+ACTIVITY_SUMMARY_FIELDS: list[str] = [
+    "task_id", "task_code", "name", "status", "type",
+    "wbs", "wbs_name", "start", "finish",
+    "target_start", "target_finish",
+    "original_duration_days", "remaining_duration_days",
+    "total_float_days", "free_float_days",
+    "is_critical", "is_longest_path",
+    "percent_complete", "budgeted_cost", "actual_cost", "remaining_cost",
+]
+
+# Additional fields available on get_activity only
+ACTIVITY_DETAIL_FIELDS: list[str] = ACTIVITY_SUMMARY_FIELDS + [
+    "actual_start", "actual_finish",
+    "early_start", "early_finish",
+    "late_start", "late_finish",
+    "resources", "predecessors", "successors",
+]
+
 
 def _fmt_date(dt: datetime | None) -> str:
     if dt is None:
@@ -107,8 +126,8 @@ def _get_tasks(xer: Xer, proj_id: str | None):
     return list(xer.tasks.values())
 
 
-def _task_to_dict(task) -> dict:
-    """Standard activity summary dict."""
+def _task_to_dict(task, fields: list[str] | None = None) -> dict:
+    """Standard activity summary dict. Pass fields to project to a subset."""
     try:
         start = _fmt_date(task.start)
     except (ValueError, AttributeError):
@@ -118,7 +137,7 @@ def _task_to_dict(task) -> dict:
     except (ValueError, AttributeError):
         finish = ""
 
-    return {
+    full = {
         "task_id": task.uid,
         "task_code": task.task_code,
         "name": task.name,
@@ -141,6 +160,9 @@ def _task_to_dict(task) -> dict:
         "actual_cost": task.actual_cost,
         "remaining_cost": task.remaining_cost,
     }
+    if fields:
+        return {k: v for k, v in full.items() if k in fields}
+    return full
 
 
 def _parse_raw_tables(content: str) -> tuple[str, list[str], dict]:
@@ -222,6 +244,32 @@ def _load_xer_content(file_path: str | None, file_content: str | None) -> tuple[
     text = raw_bytes.decode(Xer.CODEC, errors="replace")
     xer = Xer(text)
     return file_path, xer, text
+
+
+# ---------------------------------------------------------------------------
+# ── SCHEMA DISCOVERY ─────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+
+@mcp.tool
+def pyp6xer_get_activity_schema() -> str:
+    """Return the available field names for activity read tools.
+
+    Use the returned field names with the `fields` parameter of
+    pyp6xer_list_activities, pyp6xer_get_activity, and pyp6xer_search_activities
+    to limit response size to only the columns you need.
+
+    summary_fields are available on list_activities and search_activities.
+    detail_fields are only available on get_activity (they require fetching
+    relationships and resources which are not on the list view).
+    """
+    return json.dumps({
+        "summary_fields": ACTIVITY_SUMMARY_FIELDS,
+        "detail_fields": ACTIVITY_DETAIL_FIELDS,
+        "note": (
+            "summary_fields: available on list_activities and search_activities. "
+            "detail_fields: available on get_activity only."
+        ),
+    }, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +415,7 @@ def pyp6xer_list_activities(
     wbs_code: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    fields: Optional[list[str]] = None,
     ctx: Context = None,
 ) -> str:
     """List activities with optional filtering and pagination.
@@ -378,6 +427,8 @@ def pyp6xer_list_activities(
         wbs_code:  Filter by WBS full_code prefix (e.g. 'PROJ.PHASE1').
         limit:     Max results per page (default 50, max 500).
         offset:    Pagination offset (default 0).
+        fields:    Subset of fields to return per activity. Call pyp6xer_get_activity_schema
+                   for available names. Omit to return all fields.
     """
     xer = _get_xer(ctx, cache_key)
     tasks = _get_tasks(xer, proj_id)
@@ -406,7 +457,7 @@ def pyp6xer_list_activities(
         "limit": limit,
         "has_more": total > offset + len(page),
         "next_offset": offset + len(page) if total > offset + len(page) else None,
-        "activities": [_task_to_dict(t) for t in page],
+        "activities": [_task_to_dict(t, fields) for t in page],
     }, indent=2)
 
 
@@ -415,6 +466,7 @@ def pyp6xer_get_activity(
     task_code: str,
     cache_key: str = "default",
     proj_id: Optional[str] = None,
+    fields: Optional[list[str]] = None,
     ctx: Context = None,
 ) -> str:
     """Get full details for a single activity including dates, float, costs,
@@ -424,6 +476,8 @@ def pyp6xer_get_activity(
         task_code: Activity ID (e.g. 'A1000').
         cache_key: Cache key of the loaded file.
         proj_id:   Optional project filter.
+        fields:    Subset of fields to return. Call pyp6xer_get_activity_schema
+                   for available names. Omit to return all fields.
     """
     xer = _get_xer(ctx, cache_key)
     tasks = _get_tasks(xer, proj_id)
@@ -431,7 +485,7 @@ def pyp6xer_get_activity(
     if task is None:
         raise ValueError(f"Activity '{task_code}' not found.")
 
-    # Build full detail dict
+    # Build full detail dict (no projection yet — detail fields extend summary)
     detail = _task_to_dict(task)
     detail.update({
         "actual_start": _fmt_date(task.act_start_date),
@@ -490,6 +544,8 @@ def pyp6xer_get_activity(
         ],
         "memos": [m.memo_text for m in task.memos] if task.memos else [],
     })
+    if fields:
+        detail = {k: v for k, v in detail.items() if k in fields}
     return json.dumps(detail, indent=2)
 
 
@@ -499,6 +555,7 @@ def pyp6xer_search_activities(
     cache_key: str = "default",
     proj_id: Optional[str] = None,
     limit: int = 20,
+    fields: Optional[list[str]] = None,
     ctx: Context = None,
 ) -> str:
     """Search activities by name or activity ID (case-insensitive substring match).
@@ -508,6 +565,8 @@ def pyp6xer_search_activities(
         cache_key: Cache key of the loaded file.
         proj_id:   Optional project filter.
         limit:     Maximum results to return (default 20).
+        fields:    Subset of fields to return per activity. Call pyp6xer_get_activity_schema
+                   for available names. Omit to return all fields.
     """
     xer = _get_xer(ctx, cache_key)
     tasks = _get_tasks(xer, proj_id)
@@ -520,7 +579,7 @@ def pyp6xer_search_activities(
     return json.dumps({
         "query": query,
         "count": len(matches),
-        "activities": [_task_to_dict(t) for t in matches],
+        "activities": [_task_to_dict(t, fields) for t in matches],
     }, indent=2)
 
 
@@ -1270,7 +1329,8 @@ def pyp6xer_export_csv(
     Args:
         cache_key: Cache key of the loaded file.
         proj_id:   Optional project filter.
-        fields:    List of field names to include. Defaults to all standard fields.
+        fields:    Column names to include. Call pyp6xer_get_activity_schema for
+                   available names. Defaults to all standard summary fields.
     """
     xer = _get_xer(ctx, cache_key)
     tasks = _get_tasks(xer, proj_id)
