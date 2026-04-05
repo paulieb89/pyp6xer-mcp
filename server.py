@@ -1633,6 +1633,42 @@ def pyp6xer_write_file(
 
 
 # ---------------------------------------------------------------------------
+# Export tool — returns base64-encoded XER bytes for client download
+# ---------------------------------------------------------------------------
+
+def pyp6xer_export_xer(
+    cache_key: str = "default",
+    ctx: Context = None,
+) -> str:
+    """Export the current (possibly modified) schedule as base64-encoded XER bytes.
+
+    Returns serialised XER content encoded as base64 so callers can offer a file
+    download without requiring a writable local path on the server.
+
+    Args:
+        cache_key: Cache key of the loaded file.
+    """
+    import base64
+    entry = _get_cache(ctx, cache_key)
+    content = _serialize_xer(entry["header"], entry["table_order"], entry["raw_tables"])
+    xer_bytes = content.encode(Xer.CODEC)
+    b64 = base64.b64encode(xer_bytes).decode("ascii")
+
+    source = entry.get("source", "")
+    filename = source.split("/")[-1].split("?")[0] if source else f"{cache_key}.xer"
+    if not filename.endswith(".xer"):
+        filename = f"{cache_key}.xer"
+
+    return json.dumps({
+        "status": "exported",
+        "cache_key": cache_key,
+        "filename": filename,
+        "base64_content": b64,
+        "size_bytes": len(xer_bytes),
+    }, indent=2)
+
+
+# ---------------------------------------------------------------------------
 # Health check (required for Fly.io)
 # ---------------------------------------------------------------------------
 
