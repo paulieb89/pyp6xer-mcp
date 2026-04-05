@@ -17,7 +17,7 @@ import base64
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -987,6 +987,58 @@ def pyp6xer_slipping_activities(
 
 
 @mcp.tool
+def pyp6xer_lookahead(
+    cache_key: str = "default",
+    days_ahead: int = 14,
+    proj_id: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
+    """Return activities active within the next N days from the data date.
+
+    An activity is included if: finish >= data_date AND start <= data_date + days_ahead.
+    This covers in-progress activities and those starting in the window.
+
+    Args:
+        cache_key:  Cache key of the loaded file.
+        days_ahead: Lookahead window length in days (default 14).
+        proj_id:    Optional project filter.
+    """
+    xer = _get_xer(ctx, cache_key)
+    proj = _get_project(xer, proj_id)
+    tasks = proj.tasks if proj_id else list(xer.tasks.values())
+
+    data_date = proj.data_date
+    window_end = data_date + timedelta(days=days_ahead)
+
+    activities = []
+    for t in tasks:
+        if t.status.is_completed:
+            continue
+        try:
+            start = t.start
+            finish = t.finish
+        except Exception:
+            continue
+        if finish >= data_date and start <= window_end:
+            d = _task_to_dict(t, fields=[
+                "task_code", "name", "start", "finish",
+                "target_finish", "total_float_days", "percent_complete",
+                "is_critical", "status", "wbs_name",
+            ])
+            activities.append(d)
+
+    activities.sort(key=lambda a: a.get("start") or "")
+
+    return json.dumps({
+        "data_date": _fmt_date(data_date),
+        "window_end": _fmt_date(window_end),
+        "days_ahead": days_ahead,
+        "activity_count": len(activities),
+        "activities": activities,
+    }, indent=2)
+
+
+@mcp.tool
 def pyp6xer_relationship_analysis(
     cache_key: str = "default",
     proj_id: Optional[str] = None,
@@ -1308,6 +1360,136 @@ def pyp6xer_earned_value(
                 "Under budget" if cpi and cpi >= 1.0
                 else "Over budget" if cpi else "N/A"
             ),
+        },
+    }, indent=2)
+
+
+@mcp.tool
+def pyp6xer_generate_report(
+    cache_key: str = "default",
+    proj_id: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
+    """Assemble a complete monthly progress report dataset.
+
+    Returns structured metrics: progress %, health score, slipping activities,
+    critical path density, and earned value. Use this data to write a monthly
+    narrative with sections: Executive Summary, Schedule Status, Critical Path
+    & Risks, and Outlook.
+    """
+    xer = _get_xer(ctx, cache_key)
+    proj = _get_project(xer, proj_id)
+    tasks = proj.tasks if proj_id else list(xer.tasks.values())
+
+    not_started = sum(1 for t in tasks if t.status.is_not_started)
+    in_progress  = sum(1 for t in tasks if t.status.is_in_progress)
+    completed    = sum(1 for t in tasks if t.status.is_completed)
+    milestones   = [t for t in tasks if t.type.is_milestone]
+    ms_done      = sum(1 for m in milestones if m.status.is_completed)
+    total_dur    = sum(t.original_duration for t in tasks if t.original_duration > 0)
+    weighted_pct = (
+        sum(t.percent_complete * t.original_duration for t in tasks if t.original_duration > 0)
+        / total_dur if total_dur else 0
+    )  # t.percent_complete is 0.0–1.0 raw field
+
+    slipping = []
+    for t in tasks:
+        if t.status.is_completed:
+            continue
+        try:
+            forecast = t.finish
+        except Exception:
+            continue
+        baseline = t.target_end_date
+        slip = (forecast - baseline).days
+        if slip > 0:
+            slipping.append({
+                "task_code": t.task_code,
+                "name": t.name,
+                "slip_days": slip,
+                "forecast_finish": _fmt_date(forecast),
+                "target_finish": _fmt_date(baseline),
+                "is_critical": t.is_critical,
+            })
+    slipping.sort(key=lambda x: -x["slip_days"])
+
+    critical = [t for t in tasks if t.is_critical or t.is_longest_path]
+
+    workable = [t for t in tasks if not t.type.is_loe and not t.type.is_wbs and not t.status.is_completed]
+    n = len(workable)
+    score = 100
+    issues: list[str] = []
+    if n > 0:
+        days_since = (datetime.now() - proj.data_date).days
+        if days_since > 90:
+            score -= 20
+            issues.append(f"Data date is {days_since} days old")
+        elif days_since > 30:
+            score -= 10
+            issues.append(f"Data date is {days_since} days old")
+        neg_float = sum(1 for t in workable if t.total_float is not None and t.total_float < 0)
+        if neg_float:
+            score -= 15
+            issues.append(f"{neg_float} activities have negative float")
+        crit_pct = sum(1 for t in workable if t.is_critical) / n * 100
+        if crit_pct > 50:
+            score -= 10
+            issues.append(f"High critical path density: {crit_pct:.1f}%")
+        if proj.data_date > proj.finish_date:
+            score -= 15
+            issues.append("Scheduled finish has passed")
+    score = max(0, score)
+
+    bac  = sum(t.budgeted_cost for t in tasks)
+    acwp = sum(t.actual_cost for t in tasks)
+    bcwp = sum(t.budgeted_cost * t.percent_complete for t in tasks)  # 0.0–1.0 scale
+    bcws = bac * proj.duration_percent
+    spi  = round(bcwp / bcws, 3) if bcws else None
+    cpi  = round(bcwp / acwp, 3) if acwp else None
+
+    return json.dumps({
+        "report_type": "monthly_progress",
+        "project": {
+            "short_name": proj.short_name,
+            "name": proj.name,
+            "data_date": _fmt_date(proj.data_date),
+            "planned_finish": _fmt_date(proj.finish_date),
+        },
+        "progress": {
+            "total_activities": len(tasks),
+            "not_started": not_started,
+            "in_progress": in_progress,
+            "completed": completed,
+            "weighted_percent_complete": round(weighted_pct * 100, 1),
+            "milestones_total": len(milestones),
+            "milestones_complete": ms_done,
+        },
+        "health": {
+            "score": score,
+            "rating": (
+                "Excellent" if score >= 85 else
+                "Good" if score >= 70 else
+                "Fair" if score >= 55 else "Poor"
+            ),
+            "issues": issues,
+        },
+        "critical_path": {
+            "count": len(critical),
+            "pct_of_total": round(len(critical) / len(tasks) * 100, 1) if tasks else 0,
+        },
+        "slipping_activities": slipping[:10],
+        "slipping_count": len(slipping),
+        "earned_value": {
+            "BAC": round(bac, 2),
+            "SPI": spi,
+            "CPI": cpi,
+            "ACWP": round(acwp, 2),
+            "BCWP": round(bcwp, 2),
+        },
+        "cost_summary": {
+            "budgeted": round(proj.budgeted_cost, 2),
+            "actual": round(proj.actual_cost, 2),
+            "remaining": round(proj.remaining_cost, 2),
         },
     }, indent=2)
 
