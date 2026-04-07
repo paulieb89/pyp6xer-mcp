@@ -1818,6 +1818,7 @@ def pyp6xer_write_file(
 # Export tool — returns base64-encoded XER bytes for client download
 # ---------------------------------------------------------------------------
 
+@mcp.tool()
 def pyp6xer_export_xer(
     cache_key: str = "default",
     ctx: Context = None,
