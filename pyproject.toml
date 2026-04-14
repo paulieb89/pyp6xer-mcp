@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
 dependencies = [
-    "fastmcp>=3.0.0",
-    "httpx>=0.28.1",
-    "xerparser>=0.13.9",
+    "fastmcp==3.2.3",
+    "httpx==0.28.1",
+    "mcp==1.27.0",
+    "pydantic==2.12.5",
+    "xerparser==0.13.9",
 ]
