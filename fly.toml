@@ -4,14 +4,15 @@ primary_region = 'lhr'
 [build]
 
 [env]
-  FASTMCP_TRANSPORT = "http"
-  FASTMCP_HOST      = "0.0.0.0"
-  FASTMCP_PORT      = "5000"
+  FASTMCP_TRANSPORT      = "http"
+  FASTMCP_STATELESS_HTTP = "true"
+  FASTMCP_HOST           = "0.0.0.0"
+  FASTMCP_PORT           = "5000"
 
 [http_service]
   internal_port = 5000
   force_https = true
-  auto_stop_machines = 'suspend'
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
 
@@ -23,6 +24,6 @@ primary_region = 'lhr'
     timeout = "5s"
 
 [[vm]]
-  memory = '256mb'
+  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
