@@ -1,5 +1,6 @@
 # PyP6Xer MCP Server
 
+[![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/paulieb89-pyp6xer-mcp)
 An MCP server wrapping [PyP6Xer](https://github.com/HassanEmam/PyP6Xer) (`xerparser`) for loading, analysing, and editing Oracle Primavera P6 `.xer` schedule files — directly from Claude or any MCP-compatible client.
 
 ## Requirements
