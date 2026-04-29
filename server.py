@@ -18,7 +18,10 @@ import csv
 import io
 import json
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Annotated, Optional
+
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
 import httpx
 from fastmcp import Context, FastMCP
@@ -249,7 +252,7 @@ def _load_xer_content(file_path: str | None, file_content: str | None) -> tuple[
 # ── SCHEMA DISCOVERY ─────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_get_activity_schema() -> str:
     """Return the available field names for activity read tools.
 
@@ -275,11 +278,11 @@ def pyp6xer_get_activity_schema() -> str:
 # ── FILE MANAGEMENT ──────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_load_file(
-    cache_key: str = "default",
-    file_path: Optional[str] = None,
-    file_content: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    file_path: Annotated[str | None, Field(description="Local file path or HTTP/HTTPS URL to the XER file")] = None,
+    file_content: Annotated[str | None, Field(description="Base64-encoded XER file bytes (for direct uploads from Claude/ChatGPT)")] = None,
     ctx: Context = None,
 ) -> str:
     """Load a Primavera P6 XER file into the analysis cache.
@@ -319,9 +322,9 @@ def pyp6xer_load_file(
     return json.dumps(result, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_clear_cache(
-    cache_key: Optional[str] = None,
+    cache_key: Annotated[str | None, Field(description="Cache key to clear; omit to clear all cached files")] = None,
     ctx: Context = None,
 ) -> str:
     """Remove one or all loaded XER files from the cache.
@@ -340,7 +343,7 @@ def pyp6xer_clear_cache(
     return json.dumps({"status": "cleared_all", "count": count})
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_get_upload_url(ctx: Context = None) -> str:
     """Get instructions for uploading an XER file to this server.
 
@@ -361,9 +364,9 @@ def pyp6xer_get_upload_url(ctx: Context = None) -> str:
 # ── PROJECTS ─────────────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_list_projects(
-    cache_key: str = "default",
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
     ctx: Context = None,
 ) -> str:
     """List all projects in the loaded XER file with summary statistics.
@@ -406,15 +409,15 @@ def pyp6xer_list_projects(
 # ── ACTIVITIES ───────────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_list_activities(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    status: Optional[str] = None,
-    wbs_code: Optional[str] = None,
-    limit: int = 50,
-    offset: int = 0,
-    fields: Optional[list[str]] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    status: Annotated[str | None, Field(description="Filter by status: 'not_started', 'in_progress', or 'completed'")] = None,
+    wbs_code: Annotated[str | None, Field(description="Filter activities by WBS code prefix")] = None,
+    limit: Annotated[int, Field(description="Maximum number of results to return", ge=1, le=500)] = 50,
+    offset: Annotated[int, Field(description="Number of results to skip for pagination", ge=0)] = 0,
+    fields: Annotated[list[str] | None, Field(description="Subset of field names to return; call pyp6xer_get_activity_schema to see available names")] = None,
     ctx: Context = None,
 ) -> str:
     """List activities with optional filtering and pagination.
@@ -460,12 +463,12 @@ def pyp6xer_list_activities(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_get_activity(
-    task_code: str,
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    fields: Optional[list[str]] = None,
+    task_code: Annotated[str, Field(description="Activity task code (e.g. A1000)")],
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    fields: Annotated[list[str] | None, Field(description="Subset of field names to return; call pyp6xer_get_activity_schema to see available names")] = None,
     ctx: Context = None,
 ) -> str:
     """Get full details for a single activity including dates, float, costs,
@@ -548,13 +551,13 @@ def pyp6xer_get_activity(
     return json.dumps(detail, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_search_activities(
-    query: str,
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    limit: int = 20,
-    fields: Optional[list[str]] = None,
+    query: Annotated[str, Field(description="Text to search in activity codes and names")],
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    limit: Annotated[int, Field(description="Maximum number of results to return", ge=1, le=200)] = 20,
+    fields: Annotated[list[str] | None, Field(description="Subset of field names to return; call pyp6xer_get_activity_schema to see available names")] = None,
     ctx: Context = None,
 ) -> str:
     """Search activities by name or activity ID (case-insensitive substring match).
@@ -586,10 +589,10 @@ def pyp6xer_search_activities(
 # ── RESOURCES & CALENDARS ────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_list_resources(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """List all resources with assignment counts and cost/quantity totals.
@@ -638,9 +641,9 @@ def pyp6xer_list_resources(
     return json.dumps({"total": len(resources), "resources": resources}, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_list_calendars(
-    cache_key: str = "default",
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
     ctx: Context = None,
 ) -> str:
     """List all calendars defined in the XER file.
@@ -667,10 +670,10 @@ def pyp6xer_list_calendars(
 # ── SCHEDULE ANALYSIS ────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_critical_path(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Return all activities on the critical path (total float ≤ 0 or longest path flag).
@@ -705,11 +708,11 @@ def pyp6xer_critical_path(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_float_analysis(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    max_float_days: int = 30,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    max_float_days: Annotated[int, Field(description="Upper bound for float display in days", ge=0)] = 30,
     ctx: Context = None,
 ) -> str:
     """Analyse total float distribution across activities.
@@ -772,10 +775,10 @@ def pyp6xer_float_analysis(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_schedule_quality(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Run DCMA-style schedule quality checks.
@@ -853,10 +856,10 @@ def pyp6xer_schedule_quality(
     return json.dumps(checks, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_schedule_health_check(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Generate a composite schedule health score with narrative summary.
@@ -945,11 +948,11 @@ def pyp6xer_schedule_health_check(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_slipping_activities(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    min_days_slip: int = 0,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    min_days_slip: Annotated[int, Field(description="Only return activities slipping by at least this many days", ge=0)] = 0,
     ctx: Context = None,
 ) -> str:
     """Find activities that are running late (forecast finish > baseline finish).
@@ -986,11 +989,11 @@ def pyp6xer_slipping_activities(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_lookahead(
-    cache_key: str = "default",
-    days_ahead: int = 14,
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    days_ahead: Annotated[int, Field(description="Number of calendar days ahead to include in the lookahead window", ge=1)] = 14,
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Return activities active within the next N days from the data date.
@@ -1038,10 +1041,10 @@ def pyp6xer_lookahead(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_relationship_analysis(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Analyse relationship types, lag/lead distribution, and logic density.
@@ -1090,11 +1093,11 @@ def pyp6xer_relationship_analysis(
 # ── RESOURCE ANALYSIS ────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_resource_utilization(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    rsrc_name: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    rsrc_name: Annotated[str | None, Field(description="Filter by resource name (partial match)")] = None,
     ctx: Context = None,
 ) -> str:
     """Summarise resource loading: planned vs actual vs remaining quantities and costs.
@@ -1153,10 +1156,10 @@ def pyp6xer_resource_utilization(
 # ── WBS ANALYSIS ─────────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_wbs_analysis(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Return the WBS hierarchy with task counts and cost rollups per node.
@@ -1192,10 +1195,10 @@ def pyp6xer_wbs_analysis(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_work_package_summary(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Summarise leaf-level WBS nodes (work packages) with schedule and cost data.
@@ -1245,10 +1248,10 @@ def pyp6xer_work_package_summary(
 # ── PROGRESS & EARNED VALUE ──────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_progress_summary(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Summarise schedule progress: status breakdown, percent complete, milestones.
@@ -1306,10 +1309,10 @@ def pyp6xer_progress_summary(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_earned_value(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Calculate Earned Value Management (EVM) metrics.
@@ -1364,10 +1367,10 @@ def pyp6xer_earned_value(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_generate_report(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Assemble a complete monthly progress report dataset.
@@ -1498,11 +1501,11 @@ def pyp6xer_generate_report(
 # ── EXPORT & COMPARE ─────────────────────────────────────────────────────────
 # ---------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_export_csv(
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
-    fields: Optional[list[str]] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
+    fields: Annotated[list[str] | None, Field(description="Subset of field names to return; call pyp6xer_get_activity_schema to see available names")] = None,
     ctx: Context = None,
 ) -> str:
     """Export activities to CSV format (returned as a string).
@@ -1540,11 +1543,11 @@ def pyp6xer_export_csv(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_compare_snapshots(
-    cache_key_a: str,
-    cache_key_b: str,
-    proj_id: Optional[str] = None,
+    cache_key_a: Annotated[str, Field(description="Cache key of the base (original) snapshot")],
+    cache_key_b: Annotated[str, Field(description="Cache key of the modified snapshot to compare")],
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Compare two loaded XER files (snapshots) to identify schedule changes.
@@ -1700,12 +1703,12 @@ def _apply_activity_update(entry: dict, task_code: str, proj_id: str | None, upd
     return applied
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_update_activity(
     task_code: str,
-    updates: dict,
-    cache_key: str = "default",
-    proj_id: Optional[str] = None,
+    updates: Annotated[dict, Field(description="Dict of field→value to update on the activity (e.g. {'percent_complete': 50})")],
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
+    proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     ctx: Context = None,
 ) -> str:
     """Update fields on a single activity in the in-memory cache.
@@ -1736,10 +1739,10 @@ def pyp6xer_update_activity(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_batch_update(
-    updates: list,
-    cache_key: str = "default",
+    updates: Annotated[list, Field(description="List of {task_code, ...fields} dicts, one per activity to update")],
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
     ctx: Context = None,
 ) -> str:
     """Update multiple activities in a single call.
@@ -1777,10 +1780,10 @@ def pyp6xer_batch_update(
     }, indent=2)
 
 
-@mcp.tool
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_write_file(
-    output_path: Optional[str] = None,
-    cache_key: str = "default",
+    output_path: Annotated[str | None, Field(description="Local file path to write the XER file to")] = None,
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
     ctx: Context = None,
 ) -> str:
     """Write the current (possibly modified) schedule back to a .xer file.
@@ -1818,9 +1821,9 @@ def pyp6xer_write_file(
 # Export tool — returns base64-encoded XER bytes for client download
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def pyp6xer_export_xer(
-    cache_key: str = "default",
+    cache_key: Annotated[str, Field(description="Cache key identifying the loaded XER file (set when calling pyp6xer_load_file)")] = "default",
     ctx: Context = None,
 ) -> str:
     """Export the current (possibly modified) schedule as base64-encoded XER bytes.
@@ -1859,6 +1862,19 @@ def pyp6xer_export_xer(
 async def health(request):
     from starlette.responses import JSONResponse
     return JSONResponse({"status": "ok"})
+
+
+@mcp.custom_route("/smithery", methods=["GET"])
+async def smithery_card(request):
+    from starlette.responses import JSONResponse
+    return JSONResponse({
+        "qualifiedName": "io.github.paulieb89/pyp6xer-mcp",
+        "displayName": "PyP6Xer MCP",
+        "description": "Analyse Primavera P6 XER schedule files. Load, query, update, and export P6 schedules.",
+        "iconUrl": "https://raw.githubusercontent.com/paulieb89/pyp6xer-mcp/main/icon.png",
+        "license": "MIT",
+        "homepage": "https://github.com/paulieb89/pyp6xer-mcp",
+    })
 
 
 # ---------------------------------------------------------------------------

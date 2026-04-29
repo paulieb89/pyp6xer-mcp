@@ -1,10 +1,10 @@
 [project]
-name = "p6-mcp-2"
-version = "0.1.0"
-description = "Add your description here"
+name = "pyp6xer-mcp"
+version = "0.2.0"
+description = "MCP server for parsing and analysing Primavera P6 XER schedule files"
 requires-python = ">=3.13"
 dependencies = [
-    "fastmcp==3.2.3",
+    "fastmcp==3.2.4",
     "httpx==0.28.1",
     "mcp==1.27.0",
     "pydantic==2.12.5",
