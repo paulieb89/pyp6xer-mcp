@@ -1864,6 +1864,15 @@ async def health(request):
     return JSONResponse({"status": "ok"})
 
 
+@mcp.custom_route("/.well-known/glama.json", methods=["GET"])
+async def glama_claim(request):
+    from starlette.responses import JSONResponse
+    return JSONResponse({
+        "$schema": "https://glama.ai/mcp/schemas/connector.json",
+        "maintainers": [{"email": "paul@bouch.dev"}],
+    })
+
+
 @mcp.custom_route("/smithery", methods=["GET"])
 async def smithery_card(request):
     from starlette.responses import JSONResponse
