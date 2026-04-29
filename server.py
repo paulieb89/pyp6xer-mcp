@@ -1892,5 +1892,11 @@ async def smithery_card(request):
 #   FASTMCP_TRANSPORT=http  FASTMCP_HOST=0.0.0.0  FASTMCP_PORT=5000
 # ---------------------------------------------------------------------------
 
+def main() -> None:
+    import os
+    port = int(os.environ.get("PORT", "8080"))
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+
+
 if __name__ == "__main__":
-    mcp.run()
+    main()

@@ -10,3 +10,6 @@ dependencies = [
     "pydantic==2.12.5",
     "xerparser==0.13.9",
 ]
+
+[project.scripts]
+pyp6xer-mcp = "server:main"
