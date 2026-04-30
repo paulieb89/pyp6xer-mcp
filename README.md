@@ -6,30 +6,33 @@
 [![SafeSkill](https://safeskill.dev/api/badge/paulieb89-pyp6xer-mcp)](https://safeskill.dev/scan/paulieb89-pyp6xer-mcp)
 [![pyp6xer-mcp MCP server](https://glama.ai/mcp/servers/paulieb89/pyp6xer-mcp/badges/card.svg)](https://glama.ai/mcp/servers/paulieb89/pyp6xer-mcp)
 [![smithery badge](https://smithery.ai/badge/bouch/pyp6xer-mcp)](https://smithery.ai/servers/bouch/pyp6xer-mcp)
+
 An MCP server wrapping [PyP6Xer](https://github.com/HassanEmam/PyP6Xer) (`xerparser`) for loading, analysing, and editing Oracle Primavera P6 `.xer` schedule files — directly from Claude or any MCP-compatible client.
 
-## Requirements
+## Connect
 
-- Python 3.13+
-- [uv](https://docs.astral.sh/uv/)
+### Hosted (no install)
 
-## Install
-
-```bash
-uv sync
+```json
+{
+  "mcpServers": {
+    "pyp6xer": {
+      "type": "http",
+      "url": "https://pyp6xer-mcp.fly.dev/mcp"
+    }
+  }
+}
 ```
 
-## Connect to Claude Code
-
-Add to your `.mcp.json`:
+### Local (uvx)
 
 ```json
 {
   "mcpServers": {
     "pyp6xer": {
       "type": "stdio",
-      "command": "uv",
-      "args": ["run", "python", "/path/to/p6-mcp-2/server.py"]
+      "command": "uvx",
+      "args": ["pyp6xer-mcp"]
     }
   }
 }
