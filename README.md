@@ -2,8 +2,9 @@
 
 <!-- mcp-name: io.github.paulieb89/pyp6xer-mcp -->
 
+[![PyPI](https://img.shields.io/pypi/v/pyp6xer-mcp)](https://pypi.org/project/pyp6xer-mcp/)
+[![SafeSkill](https://safeskill.dev/api/badge/paulieb89-pyp6xer-mcp)](https://safeskill.dev/scan/paulieb89-pyp6xer-mcp)
 [![pyp6xer-mcp MCP server](https://glama.ai/mcp/servers/paulieb89/pyp6xer-mcp/badges/card.svg)](https://glama.ai/mcp/servers/paulieb89/pyp6xer-mcp)
-[![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/paulieb89-pyp6xer-mcp)
 [![smithery badge](https://smithery.ai/badge/bouch/pyp6xer-mcp)](https://smithery.ai/servers/bouch/pyp6xer-mcp)
 An MCP server wrapping [PyP6Xer](https://github.com/HassanEmam/PyP6Xer) (`xerparser`) for loading, analysing, and editing Oracle Primavera P6 `.xer` schedule files — directly from Claude or any MCP-compatible client.
 

@@ -11,5 +11,10 @@ dependencies = [
     "xerparser==0.13.9",
 ]
 
+[project.urls]
+Homepage = "https://pyp6xer-mcp.fly.dev"
+Repository = "https://github.com/paulieb89/pyp6xer-mcp"
+PyPI = "https://pypi.org/project/pyp6xer-mcp/"
+
 [project.scripts]
 pyp6xer-mcp = "server:main"

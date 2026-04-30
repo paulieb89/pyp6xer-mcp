@@ -1864,6 +1864,12 @@ async def health(request):
     return JSONResponse({"status": "ok"})
 
 
+@mcp.custom_route("/.well-known/mcp/server-card.json", methods=["GET"])
+async def smithery_server_card(request):
+    from starlette.responses import JSONResponse
+    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "0.2.0"}})
+
+
 @mcp.custom_route("/.well-known/glama.json", methods=["GET"])
 async def glama_claim(request):
     from starlette.responses import JSONResponse
