@@ -10,3 +10,5 @@ skills-lock.json
 main.py
 .claude/
 .mcp.json
+# Sample XER files (proprietary schedule data)
+samples/
