@@ -6,6 +6,8 @@
 [![SafeSkill](https://safeskill.dev/api/badge/paulieb89-pyp6xer-mcp)](https://safeskill.dev/scan/paulieb89-pyp6xer-mcp)
 [![pyp6xer-mcp MCP server](https://glama.ai/mcp/servers/paulieb89/pyp6xer-mcp/badges/card.svg)](https://glama.ai/mcp/servers/paulieb89/pyp6xer-mcp)
 [![smithery badge](https://smithery.ai/badge/bouch/pyp6xer-mcp)](https://smithery.ai/servers/bouch/pyp6xer-mcp)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=pyp6xer&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fpyp6xer-mcp.fly.dev%2Fmcp%22%7D)
+[![Install in VS Code (local)](https://img.shields.io/badge/VS_Code-Install_Local-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=pyp6xer&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22pyp6xer-mcp%22%5D%7D)
 
 An MCP server wrapping [PyP6Xer](https://github.com/HassanEmam/PyP6Xer) (`xerparser`) for loading, analysing, and editing Oracle Primavera P6 `.xer` schedule files — directly from Claude or any MCP-compatible client.
 
