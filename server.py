@@ -17,6 +17,8 @@ import base64
 import csv
 import io
 import json
+import os
+import time
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
 
@@ -26,7 +28,48 @@ from pydantic import Field
 import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
+from fastmcp.server.middleware import Middleware, MiddlewareContext
+from prometheus_client import CONTENT_TYPE_LATEST, Counter as PromCounter, Histogram, generate_latest
+from starlette.responses import JSONResponse, Response
 from xerparser.src.xer import Xer
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+
+TRANSPORT = os.getenv("FASTMCP_TRANSPORT", "http")
+REGION = os.getenv("FLY_REGION", "local")
+
+tool_calls_total = PromCounter(
+    "pyp6xer_tool_calls_total",
+    "Count of MCP tool invocations.",
+    labelnames=["tool", "transport", "region", "status"],
+)
+tool_duration_seconds = Histogram(
+    "pyp6xer_tool_duration_seconds",
+    "Tool invocation latency in seconds.",
+    labelnames=["tool", "transport", "region"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+
+
+class PrometheusMiddleware(Middleware):
+    """Emit fleet-standard Prometheus metrics on every tool call."""
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        tool_name = context.message.name
+        t0 = time.perf_counter()
+        try:
+            result = await call_next(context)
+            tool_calls_total.labels(tool_name, TRANSPORT, REGION, "ok").inc()
+            return result
+        except BaseException:
+            tool_calls_total.labels(tool_name, TRANSPORT, REGION, "error").inc()
+            raise
+        finally:
+            tool_duration_seconds.labels(tool_name, TRANSPORT, REGION).observe(
+                time.perf_counter() - t0
+            )
 
 # ---------------------------------------------------------------------------
 # Lifespan – shared in-memory cache for all tool calls
@@ -45,6 +88,7 @@ async def xer_lifespan(server):
 
 mcp = FastMCP(
     "pyp6xer",
+    middleware=[PrometheusMiddleware()],
     instructions=(
         "Analyse Primavera P6 XER schedule files. "
         "Start by calling pyp6xer_load_file with a local path, HTTP(S) URL, or "
@@ -1860,19 +1904,21 @@ def pyp6xer_export_xer(
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request):
-    from starlette.responses import JSONResponse
     return JSONResponse({"status": "ok"})
+
+
+@mcp.custom_route("/metrics", methods=["GET"])
+async def metrics_endpoint(request):
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @mcp.custom_route("/.well-known/mcp/server-card.json", methods=["GET"])
 async def smithery_server_card(request):
-    from starlette.responses import JSONResponse
-    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "0.3.0"}})
+    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "0.3.1"}})
 
 
 @mcp.custom_route("/.well-known/glama.json", methods=["GET"])
 async def glama_claim(request):
-    from starlette.responses import JSONResponse
     return JSONResponse({
         "$schema": "https://glama.ai/mcp/schemas/connector.json",
         "maintainers": [{"email": "paul@bouch.dev"}],
@@ -1881,7 +1927,6 @@ async def glama_claim(request):
 
 @mcp.custom_route("/smithery", methods=["GET"])
 async def smithery_card(request):
-    from starlette.responses import JSONResponse
     return JSONResponse({
         "qualifiedName": "io.github.paulieb89/pyp6xer-mcp",
         "displayName": "PyP6Xer MCP",
@@ -1899,7 +1944,6 @@ async def smithery_card(request):
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    import os
     port = int(os.environ.get("PORT", "8080"))
     mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
 
