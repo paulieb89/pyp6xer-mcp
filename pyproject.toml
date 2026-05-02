@@ -1,6 +1,6 @@
 [project]
 name = "pyp6xer-mcp"
-version = "0.3.1"
+version = "1.2.0"
 description = "MCP server for parsing and analysing Primavera P6 XER schedule files"
 requires-python = ">=3.13"
 dependencies = [
