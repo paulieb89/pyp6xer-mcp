@@ -73,3 +73,7 @@ All tool names are prefixed `pyp6xer_` to avoid conflicts when used alongside ot
 - [fastmcp](https://github.com/jlowin/fastmcp) ≥ 3.0.0
 - [xerparser](https://github.com/HassanEmam/PyP6Xer) ≥ 0.13.0
 - [httpx](https://www.python-httpx.org/) ≥ 0.28.0
+
+## Licence
+
+MIT
