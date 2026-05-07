@@ -13,6 +13,8 @@
 
 An MCP server wrapping [PyP6Xer](https://github.com/HassanEmam/PyP6Xer) (`xerparser`) for loading, analysing, and editing Oracle Primavera P6 `.xer` schedule files — directly from Claude or any MCP-compatible client.
 
+> Prefer a web interface? [p6.bouch.dev](https://p6.bouch.dev) — upload an XER and analyse it without configuring Claude.
+
 ## Connect
 
 ### Hosted (no install)
