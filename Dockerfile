@@ -14,6 +14,6 @@ RUN uv sync --frozen --no-dev
 # Copy application
 COPY server.py .
 
-EXPOSE 5000
+EXPOSE 8080
 
-CMD ["uv", "run", "python", "server.py"]
+CMD ["uv", "run", "--no-sync", "python", "server.py"]

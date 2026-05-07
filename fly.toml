@@ -4,9 +4,7 @@ primary_region = 'lhr'
 [build]
 
 [env]
-  FASTMCP_TRANSPORT      = "http"
   FASTMCP_STATELESS_HTTP = "true"
-  FASTMCP_HOST           = "0.0.0.0"
   PORT                   = "8080"
 
 [http_service]
