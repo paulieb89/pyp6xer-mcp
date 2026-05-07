@@ -23,3 +23,6 @@ PyPI = "https://pypi.org/project/pyp6xer-mcp/"
 
 [project.scripts]
 pyp6xer-mcp = "server:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["server.py"]
