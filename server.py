@@ -203,7 +203,7 @@ def _task_to_dict(task, fields: list[str] | None = None) -> dict:
         "original_duration_days": task.original_duration,
         "remaining_duration_days": task.remaining_duration,
         "total_float_days": task.total_float,
-        "free_float_days": task.free_float,
+        "free_float_days": (int(task.free_float_hr_cnt / 8) if task.free_float_hr_cnt is not None else None),
         "is_critical": task.is_critical,
         "is_longest_path": task.is_longest_path,
         "percent_complete": round(task.percent_complete * 100, 1),
