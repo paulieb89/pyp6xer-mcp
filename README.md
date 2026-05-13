@@ -51,7 +51,7 @@ PyP6Xer MCP is workflow-oriented, not just a parser. Unlike basic XER readers, i
 }
 ```
 
-### Local (uvx)
+### Local (uvx — no clone needed)
 
 ```json
 {
@@ -60,6 +60,29 @@ PyP6Xer MCP is workflow-oriented, not just a parser. Unlike basic XER readers, i
       "type": "stdio",
       "command": "uvx",
       "args": ["pyp6xer-mcp"]
+    }
+  }
+}
+```
+
+### Local (from source)
+
+Clone the repo, then point your MCP client at it:
+
+```bash
+git clone https://github.com/paulieb89/pyp6xer-mcp.git
+cd pyp6xer-mcp
+uv sync
+```
+
+```json
+{
+  "mcpServers": {
+    "pyp6xer": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "server.py"],
+      "cwd": "/path/to/pyp6xer-mcp"
     }
   }
 }
@@ -75,25 +98,25 @@ PyP6Xer MCP is workflow-oriented, not just a parser. Unlike basic XER readers, i
 
 Multiple files can be loaded simultaneously using different `cache_key` values.
 
-## Tools (25)
+## Tools (29)
 
 | Category | Tools |
 |---|---|
 | File | `load_file`, `list_projects`, `clear_cache`, `get_upload_url` |
-| Activities | `list_activities`, `get_activity`, `search_activities` |
-| Analysis | `critical_path`, `float_analysis`, `schedule_quality`, `schedule_health_check`, `slipping_activities`, `relationship_analysis` |
+| Activities | `list_activities`, `get_activity`, `search_activities`, `get_activity_schema` |
+| Analysis | `critical_path`, `float_analysis`, `schedule_quality`, `schedule_health_check`, `slipping_activities`, `relationship_analysis`, `lookahead` |
 | Progress / EVM | `progress_summary`, `earned_value` |
 | Resources | `list_resources`, `resource_utilization` |
 | Calendars | `list_calendars` |
 | WBS | `wbs_analysis`, `work_package_summary` |
-| Export | `export_csv`, `compare_snapshots` |
+| Export | `export_csv`, `export_xer`, `compare_snapshots`, `generate_report` |
 | Write | `update_activity`, `batch_update`, `write_file` |
 
 All tool names are prefixed `pyp6xer_` to avoid conflicts when used alongside other MCP servers.
 
 ## Dependencies
 
-- [fastmcp](https://github.com/jlowin/fastmcp) ≥ 3.0.0
+- [fastmcp](https://github.com/jlowin/fastmcp) 3.2.4
 - [xerparser](https://github.com/HassanEmam/PyP6Xer) ≥ 0.13.0
 - [httpx](https://www.python-httpx.org/) ≥ 0.28.0
 
