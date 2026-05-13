@@ -5,6 +5,7 @@ primary_region = 'lhr'
 
 [env]
   FASTMCP_STATELESS_HTTP = "true"
+  FASTMCP_TRANSPORT      = "http"
   PORT                   = "8080"
 
 [http_service]

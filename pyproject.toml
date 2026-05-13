@@ -4,9 +4,39 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyp6xer-mcp"
-version = "1.2.1"
-description = "MCP server for parsing and analysing Primavera P6 XER schedule files"
-requires-python = ">=3.13"
+version = "1.2.2"
+description = "MCP server for analysing, comparing, editing, and exporting Primavera P6 XER schedules"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Paul Boucherat" }]
+keywords = [
+    "primavera",
+    "primavera-p6",
+    "p6",
+    "xer",
+    "mcp",
+    "model-context-protocol",
+    "construction",
+    "scheduling",
+    "project-controls",
+    "delay-analysis",
+    "earned-value",
+    "critical-path",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "fastmcp==3.2.4",
     "httpx==0.28.1",
@@ -17,8 +47,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://pyp6xer-mcp.fly.dev"
+Homepage = "https://p6.bouch.dev"
 Repository = "https://github.com/paulieb89/pyp6xer-mcp"
+Documentation = "https://github.com/paulieb89/pyp6xer-mcp#readme"
+Issues = "https://github.com/paulieb89/pyp6xer-mcp/issues"
 PyPI = "https://pypi.org/project/pyp6xer-mcp/"
 
 [project.scripts]
@@ -26,3 +58,15 @@ pyp6xer-mcp = "server:main"
 
 [tool.hatch.build.targets.wheel]
 only-include = ["server.py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25",
+    "tiktoken>=0.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"

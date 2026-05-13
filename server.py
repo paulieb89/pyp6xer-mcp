@@ -32,6 +32,11 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 from prometheus_client import CONTENT_TYPE_LATEST, Counter as PromCounter, Histogram, generate_latest
 from starlette.responses import JSONResponse, Response
 from xerparser.src.xer import Xer
+import xerparser.schemas.taskpred as _taskpred
+
+# xerparser 0.13.9: int_or_zero imported by name in taskpred so must be patched
+# there, not in validators. Handles float strings like "0.8" (fractional lag hrs).
+_taskpred.int_or_zero = lambda v: 0 if v in ("", None) else int(float(v))
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics
@@ -198,7 +203,7 @@ def _task_to_dict(task, fields: list[str] | None = None) -> dict:
         "original_duration_days": task.original_duration,
         "remaining_duration_days": task.remaining_duration,
         "total_float_days": task.total_float,
-        "free_float_days": task.free_float,
+        "free_float_days": (int(task.free_float_hr_cnt / 8) if task.free_float_hr_cnt is not None else None),
         "is_critical": task.is_critical,
         "is_longest_path": task.is_longest_path,
         "percent_complete": round(task.percent_complete * 100, 1),
@@ -267,7 +272,7 @@ def _serialize_xer(header: str, table_order: list[str], raw_tables: dict) -> str
     return "\n".join(lines)
 
 
-def _load_xer_content(file_path: str | None, file_content: str | None) -> tuple[str, Xer]:
+def _load_xer_content(file_path: str | None, file_content: str | None) -> tuple[str, Xer, str]:
     """Load XER from path/URL/base64. Returns (source_label, Xer)."""
     if file_content:
         raw_bytes = base64.b64decode(file_content)
@@ -459,7 +464,7 @@ def pyp6xer_list_activities(
     proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     status: Annotated[str | None, Field(description="Filter by status: 'not_started', 'in_progress', or 'completed'")] = None,
     wbs_code: Annotated[str | None, Field(description="Filter activities by WBS code prefix")] = None,
-    limit: Annotated[int, Field(description="Maximum number of results to return", ge=1, le=500)] = 50,
+    limit: Annotated[int, Field(description="Maximum number of results to return", ge=1, le=500)] = 25,
     offset: Annotated[int, Field(description="Number of results to skip for pagination", ge=0)] = 0,
     fields: Annotated[list[str] | None, Field(description="Subset of field names to return; call pyp6xer_get_activity_schema to see available names")] = None,
     ctx: Context = None,
@@ -1236,7 +1241,7 @@ def pyp6xer_wbs_analysis(
     return json.dumps({
         "total_wbs_nodes": len(nodes),
         "wbs_nodes": [_wbs_node_dict(n) for n in nodes],
-    }, indent=2)
+    }, separators=(",", ":"))
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
@@ -1914,7 +1919,7 @@ async def metrics_endpoint(request):
 
 @mcp.custom_route("/.well-known/mcp/server-card.json", methods=["GET"])
 async def smithery_server_card(request):
-    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "1.2.1"}})
+    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "1.2.2"}})
 
 
 @mcp.custom_route("/.well-known/glama.json", methods=["GET"])
@@ -1944,8 +1949,12 @@ async def smithery_card(request):
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    port = int(os.environ.get("PORT", "8080"))
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+    transport = os.getenv("FASTMCP_TRANSPORT", "stdio")
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+    else:
+        port = int(os.environ.get("PORT", "8080"))
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
