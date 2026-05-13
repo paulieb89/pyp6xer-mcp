@@ -11,9 +11,30 @@
 [![Install in Cursor](https://img.shields.io/badge/Cursor-Install_Server-000000?style=flat-square&logoColor=white)](https://cursor.com/en/install-mcp?name=pyp6xer&config=eyJ0eXBlIjoiaHR0cCIsInVybCI6Imh0dHBzOi8vcHlwNnhlci1tY3AuZmx5LmRldi9tY3AifQ==)
 [![Install in VS Code (local)](https://img.shields.io/badge/VS_Code-Install_Local-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=pyp6xer&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22pyp6xer-mcp%22%5D%7D)
 
-An MCP server wrapping [PyP6Xer](https://github.com/HassanEmam/PyP6Xer) (`xerparser`) for loading, analysing, and editing Oracle Primavera P6 `.xer` schedule files — directly from Claude or any MCP-compatible client.
+AI-agent tools for Primavera P6 XER schedules. Load, analyse, compare, edit, and export `.xer` files from Claude, ChatGPT, Cursor, or any MCP-compatible client.
 
-> Prefer a web interface? [p6.bouch.dev](https://p6.bouch.dev) — upload an XER and analyse it without configuring Claude.
+PyP6Xer MCP is workflow-oriented, not just a parser. Unlike basic XER readers, it gives AI agents the full project-controls loop: schedule health checks, critical path, delay comparison, progress updates, relationship edits, and write-back to XER.
+
+> Prefer a web interface? [p6.bouch.dev](https://p6.bouch.dev) — upload an XER and analyse it without configuring MCP.
+
+## Use cases
+
+- Ask questions about a Primavera P6 XER schedule
+- Run critical path and float analysis
+- Compare baseline vs update XER files and identify slipping activities
+- Run schedule quality and health checks
+- Edit activity fields safely and batch-update progress
+- Export modified XER files
+- Analyse relationship changes between two XER snapshots
+- Build AI workflows for delay analysis and project controls
+
+## Example prompts
+
+- *Load this XER and show the critical path.*
+- *Compare baseline.xer and update-03.xer and list major slippages.*
+- *Find activities with high float, missing logic, or long durations.*
+- *Update activity A1020 to 60% complete and export the edited XER.*
+- *Analyse relationship changes between two XER snapshots.*
 
 ## Connect
 

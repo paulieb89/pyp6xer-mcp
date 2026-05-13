@@ -3,7 +3,8 @@
     "pyp6xer": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "python", "server.py"]
+      "args": ["run", "server.py"],
+      "cwd": "/home/bch/dev/mcpfleet/pyp6xer-mcp"
     }
   }
 }

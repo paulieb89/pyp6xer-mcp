@@ -32,6 +32,11 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 from prometheus_client import CONTENT_TYPE_LATEST, Counter as PromCounter, Histogram, generate_latest
 from starlette.responses import JSONResponse, Response
 from xerparser.src.xer import Xer
+import xerparser.schemas.taskpred as _taskpred
+
+# xerparser 0.13.9: int_or_zero imported by name in taskpred so must be patched
+# there, not in validators. Handles float strings like "0.8" (fractional lag hrs).
+_taskpred.int_or_zero = lambda v: 0 if v in ("", None) else int(float(v))
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics
@@ -1914,7 +1919,7 @@ async def metrics_endpoint(request):
 
 @mcp.custom_route("/.well-known/mcp/server-card.json", methods=["GET"])
 async def smithery_server_card(request):
-    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "1.2.1"}})
+    return JSONResponse({"serverInfo": {"name": "pyp6xer-mcp", "version": "1.2.2"}})
 
 
 @mcp.custom_route("/.well-known/glama.json", methods=["GET"])
@@ -1944,8 +1949,12 @@ async def smithery_card(request):
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    port = int(os.environ.get("PORT", "8080"))
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+    transport = os.getenv("FASTMCP_TRANSPORT", "stdio")
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+    else:
+        port = int(os.environ.get("PORT", "8080"))
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
