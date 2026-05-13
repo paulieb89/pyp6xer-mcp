@@ -272,7 +272,7 @@ def _serialize_xer(header: str, table_order: list[str], raw_tables: dict) -> str
     return "\n".join(lines)
 
 
-def _load_xer_content(file_path: str | None, file_content: str | None) -> tuple[str, Xer]:
+def _load_xer_content(file_path: str | None, file_content: str | None) -> tuple[str, Xer, str]:
     """Load XER from path/URL/base64. Returns (source_label, Xer)."""
     if file_content:
         raw_bytes = base64.b64decode(file_content)
@@ -464,7 +464,7 @@ def pyp6xer_list_activities(
     proj_id: Annotated[str | None, Field(description="Project ID or short name; uses first project if omitted")] = None,
     status: Annotated[str | None, Field(description="Filter by status: 'not_started', 'in_progress', or 'completed'")] = None,
     wbs_code: Annotated[str | None, Field(description="Filter activities by WBS code prefix")] = None,
-    limit: Annotated[int, Field(description="Maximum number of results to return", ge=1, le=500)] = 50,
+    limit: Annotated[int, Field(description="Maximum number of results to return", ge=1, le=500)] = 25,
     offset: Annotated[int, Field(description="Number of results to skip for pagination", ge=0)] = 0,
     fields: Annotated[list[str] | None, Field(description="Subset of field names to return; call pyp6xer_get_activity_schema to see available names")] = None,
     ctx: Context = None,
@@ -1241,7 +1241,7 @@ def pyp6xer_wbs_analysis(
     return json.dumps({
         "total_wbs_nodes": len(nodes),
         "wbs_nodes": [_wbs_node_dict(n) for n in nodes],
-    }, indent=2)
+    }, separators=(",", ":"))
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
