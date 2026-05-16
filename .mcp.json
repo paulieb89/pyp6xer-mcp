@@ -1,10 +1,8 @@
 {
   "mcpServers": {
     "pyp6xer": {
-      "type": "stdio",
-      "command": "uv",
-      "args": ["run", "server.py"],
-      "cwd": "/home/bch/dev/mcpfleet/pyp6xer-mcp"
+      "type": "http",
+      "url": "https://pyp6xer-mcp.fly.dev/mcp"
     }
   }
 }
