@@ -27,6 +27,10 @@ primary_region = 'lhr'
   cpu_kind = 'shared'
   cpus = 1
 
+[mounts]
+  source = "xer_uploads"
+  destination = "/data"
+
 [metrics]
   port = 8080
   path = "/metrics"
