@@ -38,7 +38,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "fastmcp==3.2.4",
+    "fastmcp[apps]==3.2.4",
+    "prefab-ui>=0.1,<1.0",
     "httpx==0.28.1",
     "mcp==1.27.0",
     "pydantic==2.12.5",
