@@ -97,9 +97,10 @@ async def xer_lifespan(server):
 class VolumeUpload(FileUpload):
     """FileUpload backed by Fly Volume at UPLOAD_DIR.
 
-    Writes raw XER bytes to disk in on_store so they survive across
-    stateless HTTP requests. The LLM then calls pyp6xer_load_file with
-    the on-disk path to parse and cache the XER for analysis.
+    on_store writes raw XER bytes to disk for persistence AND immediately
+    parses the XER from the in-memory base64 data, storing it in the lifespan
+    cache under cache_key=filename. The LLM can call pyp6xer_* tools with
+    cache_key=<filename> immediately after upload — no pyp6xer_load_file call needed.
     """
 
     def _get_scope_key(self, ctx) -> str:
@@ -107,23 +108,55 @@ class VolumeUpload(FileUpload):
 
     def on_store(self, files: list[dict], ctx) -> list[dict]:
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        cache = ctx.lifespan_context["cache"]
         summaries = []
         for f in files:
-            dest = UPLOAD_DIR / f["name"]
-            dest.write_bytes(base64.b64decode(f["data"]))
-            size = dest.stat().st_size
-            summaries.append({
-                "name": f["name"],
-                "type": f.get("type", "application/octet-stream"),
-                "size": size,
-                "size_display": f"{size // 1024} KB",
-                "uploaded_at": "",
-            })
+            name = f["name"]
+            # Write to disk for persistence across process restarts
+            dest = UPLOAD_DIR / name
+            raw_bytes = base64.b64decode(f["data"])
+            dest.write_bytes(raw_bytes)
+            size = len(raw_bytes)
+
+            # Parse XER from in-memory bytes and store in cache immediately.
+            # Uses base64 data already in memory — no disk read dependency.
+            try:
+                _, xer, raw_text = _load_xer_content(file_path=None, file_content=f["data"])
+                header, table_order, raw_tables = _parse_raw_tables(raw_text)
+                cache[name] = {
+                    "xer": xer,
+                    "raw_tables": raw_tables,
+                    "table_order": table_order,
+                    "header": header,
+                    "source": str(dest),
+                }
+                proj_names = [f"{p.short_name} – {p.name}" for p in xer.projects.values()]
+                summaries.append({
+                    "name": name,
+                    "type": f.get("type", "application/octet-stream"),
+                    "size": size,
+                    "size_display": f"{size // 1024} KB",
+                    "uploaded_at": "",
+                    "cache_key": name,
+                    "status": "loaded",
+                    "projects": proj_names,
+                })
+            except Exception as exc:
+                summaries.append({
+                    "name": name,
+                    "type": f.get("type", "application/octet-stream"),
+                    "size": size,
+                    "size_display": f"{size // 1024} KB",
+                    "uploaded_at": "",
+                    "status": "parse_failed",
+                    "error": str(exc),
+                })
         return summaries
 
     def on_list(self, ctx) -> list[dict]:
         if not UPLOAD_DIR.exists():
             return []
+        cache = ctx.lifespan_context["cache"]
         return [
             {
                 "name": p.name,
@@ -131,6 +164,8 @@ class VolumeUpload(FileUpload):
                 "size": p.stat().st_size,
                 "size_display": f"{p.stat().st_size // 1024} KB",
                 "uploaded_at": "",
+                "cache_key": p.name,
+                "ready": p.name in cache,
             }
             for p in sorted(UPLOAD_DIR.glob("*.xer"))
         ]
@@ -158,8 +193,11 @@ mcp = FastMCP(
     middleware=[PrometheusMiddleware()],
     instructions=(
         "Analyse Primavera P6 XER schedule files. "
-        "Start by calling pyp6xer_load_file with a local path, HTTP(S) URL, or "
-        "base64-encoded file content. Then use the analysis tools. "
+        "To load a file: call file_manager to open the drag-and-drop upload UI (preferred), "
+        "or call pyp6xer_load_file with a local path, URL, or base64 content. "
+        "After file_manager upload, the file is immediately cached — call analysis tools "
+        "with cache_key=<filename> (e.g. pyp6xer_list_projects(cache_key='project.xer')) "
+        "without any extra load step. "
         "Multiple files can be loaded simultaneously using different cache_key values."
     ),
     lifespan=xer_lifespan,
