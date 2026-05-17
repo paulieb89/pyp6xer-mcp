@@ -101,7 +101,15 @@ class VolumeUpload(FileUpload):
     parses the XER from the in-memory base64 data, storing it in the lifespan
     cache under cache_key=filename. The LLM can call pyp6xer_* tools with
     cache_key=<filename> immediately after upload — no pyp6xer_load_file call needed.
+
+    read_file is removed from the tool list — the LLM uses pyp6xer_* tools instead.
     """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # read_file returns raw base64 bytes — not useful here since the XER is
+        # already parsed and cached in on_store. Remove it from the tool list.
+        self._local._components.pop("tool:read_file@", None)
 
     def _get_scope_key(self, ctx) -> str:
         return "__shared__"  # all requests see the same file pool (stateless HTTP)
