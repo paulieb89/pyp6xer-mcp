@@ -1,5 +1,7 @@
 # PyP6Xer MCP Server
 
+Maintained by BOUCH — private hosting, custom tools and setup: paul@bouch.dev · [bouch.dev/products/pyp6xer-mcp](https://bouch.dev/products/pyp6xer-mcp)
+
 <!-- mcp-name: io.github.paulieb89/pyp6xer-mcp -->
 
 [![PyPI](https://img.shields.io/pypi/v/pyp6xer-mcp)](https://pypi.org/project/pyp6xer-mcp/)
