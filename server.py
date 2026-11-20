@@ -33,6 +33,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter as PromCounter, Histo
 from starlette.responses import JSONResponse, Response
 from xerparser.src.xer import Xer
 import xerparser.schemas.taskpred as _taskpred
+from pathlib import Path
+from fastmcp.apps.file_upload import FileUpload
 
 # xerparser 0.13.9: int_or_zero imported by name in taskpred so must be patched
 # there, not in validators. Handles float strings like "0.8" (fractional lag hrs).
@@ -44,6 +46,7 @@ _taskpred.int_or_zero = lambda v: 0 if v in ("", None) else int(float(v))
 
 TRANSPORT = os.getenv("FASTMCP_TRANSPORT", "http")
 REGION = os.getenv("FLY_REGION", "local")
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/data/uploads"))
 
 tool_calls_total = PromCounter(
     "pyp6xer_tool_calls_total",
@@ -88,6 +91,108 @@ async def xer_lifespan(server):
 
 
 # ---------------------------------------------------------------------------
+# File upload provider (Fly Volume-backed)
+# ---------------------------------------------------------------------------
+
+class VolumeUpload(FileUpload):
+    """FileUpload backed by Fly Volume at UPLOAD_DIR.
+
+    on_store writes raw XER bytes to disk for persistence AND immediately
+    parses the XER from the in-memory base64 data, storing it in the lifespan
+    cache under cache_key=filename. The LLM can call pyp6xer_* tools with
+    cache_key=<filename> immediately after upload — no pyp6xer_load_file call needed.
+
+    read_file is removed from the tool list — the LLM uses pyp6xer_* tools instead.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # read_file returns raw base64 bytes — not useful here since the XER is
+        # already parsed and cached in on_store. Remove it from the tool list.
+        self._local._components.pop("tool:read_file@", None)
+
+    def _get_scope_key(self, ctx) -> str:
+        return "__shared__"  # all requests see the same file pool (stateless HTTP)
+
+    def on_store(self, files: list[dict], ctx) -> list[dict]:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        cache = ctx.lifespan_context["cache"]
+        summaries = []
+        for f in files:
+            name = f["name"]
+            # Write to disk for persistence across process restarts
+            dest = UPLOAD_DIR / name
+            raw_bytes = base64.b64decode(f["data"])
+            dest.write_bytes(raw_bytes)
+            size = len(raw_bytes)
+
+            # Parse XER from in-memory bytes and store in cache immediately.
+            # Uses base64 data already in memory — no disk read dependency.
+            try:
+                _, xer, raw_text = _load_xer_content(file_path=None, file_content=f["data"])
+                header, table_order, raw_tables = _parse_raw_tables(raw_text)
+                cache[name] = {
+                    "xer": xer,
+                    "raw_tables": raw_tables,
+                    "table_order": table_order,
+                    "header": header,
+                    "source": str(dest),
+                }
+                proj_names = [f"{p.short_name} – {p.name}" for p in xer.projects.values()]
+                summaries.append({
+                    "name": name,
+                    "type": f.get("type", "application/octet-stream"),
+                    "size": size,
+                    "size_display": f"{size // 1024} KB",
+                    "uploaded_at": "",
+                    "cache_key": name,
+                    "status": "loaded",
+                    "projects": proj_names,
+                })
+            except Exception as exc:
+                summaries.append({
+                    "name": name,
+                    "type": f.get("type", "application/octet-stream"),
+                    "size": size,
+                    "size_display": f"{size // 1024} KB",
+                    "uploaded_at": "",
+                    "status": "parse_failed",
+                    "error": str(exc),
+                })
+        return summaries
+
+    def on_list(self, ctx) -> list[dict]:
+        if not UPLOAD_DIR.exists():
+            return []
+        cache = ctx.lifespan_context["cache"]
+        return [
+            {
+                "name": p.name,
+                "type": "application/octet-stream",
+                "size": p.stat().st_size,
+                "size_display": f"{p.stat().st_size // 1024} KB",
+                "uploaded_at": "",
+                "cache_key": p.name,
+                "ready": p.name in cache,
+            }
+            for p in sorted(UPLOAD_DIR.glob("*.xer"))
+        ]
+
+    def on_read(self, name: str, ctx) -> dict:
+        path = UPLOAD_DIR / name
+        if not path.exists():
+            raise ValueError(f"File '{name}' not found. Upload it first via file_manager.")
+        data = path.read_bytes()
+        return {
+            "name": name,
+            "size": len(data),
+            "type": "application/octet-stream",
+            "uploaded_at": "",
+            "content_base64": base64.b64encode(data).decode(),
+        }
+
+
+# ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
 
@@ -96,12 +201,23 @@ mcp = FastMCP(
     middleware=[PrometheusMiddleware()],
     instructions=(
         "Analyse Primavera P6 XER schedule files. "
-        "Start by calling pyp6xer_load_file with a local path, HTTP(S) URL, or "
-        "base64-encoded file content. Then use the analysis tools. "
+        "To load a file: call file_manager to open the drag-and-drop upload UI (preferred), "
+        "or call pyp6xer_load_file with a local path, URL, or base64 content. "
+        "After file_manager upload, the file is immediately cached — call analysis tools "
+        "with cache_key=<filename> (e.g. pyp6xer_list_projects(cache_key='project.xer')) "
+        "without any extra load step. "
         "Multiple files can be loaded simultaneously using different cache_key values."
     ),
     lifespan=xer_lifespan,
 )
+
+mcp.add_provider(VolumeUpload(
+    name="XER Upload",
+    title="Upload XER Schedule",
+    description="Drop a Primavera P6 .xer file to load it for analysis.",
+    drop_label="Drop .xer file here",
+    max_file_size=50 * 1024 * 1024,  # 50 MB
+))
 
 
 # ---------------------------------------------------------------------------
@@ -393,19 +509,19 @@ def pyp6xer_clear_cache(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
-def pyp6xer_get_upload_url(ctx: Context = None) -> str:
-    """Get instructions for uploading an XER file to this server.
+def pyp6xer_get_upload_url() -> str:
+    """Get instructions for loading an XER file into the analyser.
 
-    Since this is a local server, files are loaded directly via
-    pyp6xer_load_file using a local path or URL.
+    Preferred: call file_manager to open the drag-and-drop upload UI.
+    Alternatively use pyp6xer_load_file with a local path, URL, or base64 content.
     """
     return json.dumps({
-        "instructions": (
-            "This is a local MCP server. To load an XER file, use pyp6xer_load_file with: "
-            "(1) file_path='/absolute/path/to/file.xer' for a local file, "
-            "(2) file_path='https://...' for a URL, or "
-            "(3) file_content='<base64_encoded_bytes>' for direct content upload."
-        )
+        "preferred": "Call file_manager to open the drag-and-drop upload UI",
+        "alternatives": {
+            "local_path": "pyp6xer_load_file(file_path='/absolute/path/to/file.xer')",
+            "url": "pyp6xer_load_file(file_path='https://...')",
+            "base64": "pyp6xer_load_file(file_content='<base64_bytes>')",
+        },
     })
 
 
@@ -1943,9 +2059,70 @@ async def smithery_card(request):
 
 
 # ---------------------------------------------------------------------------
+# ASGI middleware — transport-level shims for remote HTTP deployments
+# ---------------------------------------------------------------------------
+
+class _HttpGuard:
+    """Return a held-open SSE stream for GET /mcp; 405 for DELETE /mcp.
+
+    claude.ai probes GET /mcp to establish an SSE stream before sending MCP
+    protocol messages via POST. With stateless_http=True FastMCP only registers
+    POST routes, so GET returns 405 — claude.ai treats this as a connection
+    failure even though POST works fine.
+    """
+    def __init__(self, app, mcp_path: bytes = b"/mcp"):
+        self.app = app
+        self._mcp_path = mcp_path.rstrip(b"/")
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            path = scope.get("path", "").rstrip("/").encode()
+            method = scope.get("method", "").upper().encode()
+            if path == self._mcp_path:
+                if method == b"GET":
+                    await send({"type": "http.response.start", "status": 200, "headers": [
+                        (b"content-type", b"text/event-stream"),
+                        (b"cache-control", b"no-cache"),
+                        (b"connection", b"keep-alive"),
+                    ]})
+                    await send({"type": "http.response.body", "body": b"", "more_body": True})
+                    while True:
+                        event = await receive()
+                        if event["type"] == "http.disconnect":
+                            break
+                    return
+                if method == b"DELETE":
+                    from starlette.responses import Response as StarletteResponse
+                    await StarletteResponse("Method Not Allowed", status_code=405, headers={"Allow": "POST"})(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
+
+
+class _AcceptNormalizer:
+    """Stamp Accept to the MCP-spec value on /mcp only, so json_response=True never 406s.
+
+    Anthropic sends mixed Accept headers per request type (application/json for
+    initialize, text/event-stream for tools/list). Only stamp the MCP endpoint —
+    leave /health, /.well-known/* with their original Accept headers.
+    """
+    def __init__(self, app, mcp_path: bytes = b"/mcp"):
+        self.app = app
+        self._mcp_path = mcp_path.rstrip(b"/")
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path", "").rstrip("/").encode() == self._mcp_path:
+            headers = [
+                (b"accept", b"application/json, text/event-stream")
+                if name.lower() == b"accept"
+                else (name, value)
+                for name, value in scope.get("headers", [])
+            ]
+            scope = {**scope, "headers": headers}
+        await self.app(scope, receive, send)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
-# Transport is controlled by env vars at deploy time:
-#   FASTMCP_TRANSPORT=http  FASTMCP_HOST=0.0.0.0  FASTMCP_PORT=5000
 # ---------------------------------------------------------------------------
 
 def main() -> None:
@@ -1953,8 +2130,25 @@ def main() -> None:
     if transport == "stdio":
         mcp.run(transport="stdio")
     else:
+        import uvicorn
+        from fastmcp.server.http import create_streamable_http_app
+
         port = int(os.environ.get("PORT", "8080"))
-        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+        app = create_streamable_http_app(
+            mcp,
+            streamable_http_path="/mcp",
+            json_response=True,
+            stateless_http=True,
+        )
+        uvicorn.run(
+            _HttpGuard(_AcceptNormalizer(app)),
+            host="0.0.0.0",
+            port=port,
+            forwarded_allow_ips="*",
+            proxy_headers=True,
+            lifespan="on",
+            log_level="info",
+        )
 
 
 if __name__ == "__main__":
